@@ -26,8 +26,7 @@ library(tidyverse)
 
 ```{r}
 districts = read_csv('data/districts.csv')
-
-districts
+str(districts)
 ```
 
 
@@ -38,9 +37,7 @@ districts <-
   districts %>% 
   filter(system_name != 'State of Tennessee')
 ```
-```{r}
-districts
-```
+
 
 
 3. How many districts have a proficiency rate of at least 80% for both alg_1 and eng_1? **Response to Text Question: There are only 13.**
@@ -48,8 +45,7 @@ districts
 ```{r}
 districts %>% 
   filter(alg_1 >= 80 & eng_1 >= 80) %>% 
-  count(system_name)
-
+  count()
 ```
 
 
@@ -66,7 +62,8 @@ districts %>%
 
 ```{r}
 districts %>% 
-  arrange(grad)
+  arrange(grad) %>% 
+  top_n(-1, grad)
 ```
 
 
@@ -74,7 +71,8 @@ districts %>%
 
 ```{r}
 districts %>% 
-  arrange(desc(dropout))
+  arrange(desc(dropout)) %>% 
+  top_n(1, dropout)
 ```
 
 
@@ -83,30 +81,48 @@ districts %>%
 ```{r}
 districts %>% 
   filter(region == "Mid Cumberland") %>% 
-  arrange(desc(act_composite))
+  arrange(desc(act_composite)) %>% 
+  top_n(1, act_composite)
 ```
 
 
 8. Create a histogram showing the distribution of graduation rates. What can you say about this distribution? **Definitely left skewed, with relatively high graduation rates across the state with a few extremely low outliers.**
 
 ```{r}
-ggplot(districts, aes(x = grad, color = region)) + geom_histogram()
+ggplot(districts, aes(x = grad, fill = region)) + 
+  geom_histogram(bins = 30, position = "stack") +
+  xlim(0, 100) + 
+  labs(x = "Graduation Rate", 
+       y = "Count of School Districts", 
+       title = "Histogram of Graduation Rate Distributions (Stacked by Region)")
 ```
 
 
 9. Create a scatter plot to compare alg_1 proficiency rates to alg_2 rates. What do you notice? **That proficiency in one subject is positively correlated with the other, but that proficiency in Algebra 1 is greater overall.** Facet this plot by region. Does anything stand out when you facet the plots? **Not particularly. The mix between regions is pretty thorough, and the positive correlation appears to hold for each region, except for the Upper Cumberland.**
 
 ```{r}
-ggplot(districts, aes(x = alg_1, y = alg_2)) + geom_point() + 
-  facet_wrap(facets = vars(region), shrink = FALSE, scales = "free")
+ggplot(districts, aes(x = alg_1, y = alg_2, size = enrollment)) + 
+  geom_point(position = "jitter", shape = 1) + 
+  facet_wrap(facets = vars(region), shrink = FALSE, scales = "free") +
+  xlim(0, 100) +
+  ylim(0, 100) +
+  labs(x = "Algebra 1 Proficiency Rates", 
+       y = "Algebra 2 Proficiency Rates", 
+       title = "Algebra 1 vs. 2 Proficiency Rates by Region")
 ```
 
 10. Create a bar chart showing the total enrollment by region. Which region has the highest total enrollment? Which has the smallest?
 
 ```{r}
 ggplot(districts, aes(x = region, y = enrollment)) + 
-  geom_bar(stat = 'identity', width = 0.5, fill = "brown") + 
-  theme(axis.text.x = element_text(angle = 90))
+  geom_col(width = 0.5, fill = "black") +
+  labs(x = "Region", 
+       y = "Enrollment", 
+       title = "Total Enrollment by Region") +
+  scale_y_continuous(labels = scales::comma) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90),
+        plot.title = element_text(hjust = 0.5))
 ```
 
 
@@ -119,7 +135,7 @@ districts %>%
 ```
 
 
-12. What is the mean graduation rate across all districts? **Roughly 90%.** What might be wrong with using just the regular mean to assess average graduation rates? **It may be unrepresentative of the true population, since the enrollment of certain districts is likely much larger than others, which larger districts should be given more weight.**
+12. What is the mean graduation rate across all districts? **Roughly 90%.** What might be wrong with using just the regular mean to assess average graduation rates? **It may be unrepresentative of the true population, since the enrollment of certain districts is likely much larger than others, which should be given more weight.**
 
 ```{r}
 districts %>% 
@@ -140,18 +156,35 @@ districts %>%
 14. Create a boxplot showing enrollment rates per region. Does anything stand out? **All regions have fairly consistent enrollment with at least one extreme outlier except for in the Mid Cumberland region, which has a enormous interquartile range.**
 
 ```{r}
-ggplot(districts, aes(x = region, y = enrollment, color = region)) + 
-  geom_boxplot() +
-  theme(axis.text.x = element_text(angle = 90))
+ggplot(districts, aes(x = region, y = enrollment, fill = region)) + 
+  geom_boxplot() + 
+  scale_fill_brewer(palette = "Dark2") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(x = "Region",
+       y = "Enrollment",
+       title = "Distribution of Enrollment by Region") + 
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "none")
+  
 ```
-
 
 15. Create a boxplot showing graduation rates per region. Does anything stand out?
 
 ```{r}
-ggplot(districts, aes(x = region, y = grad, color = region)) + 
+ggplot(districts, aes(x = region, y = grad/100, fill = region)) + 
   geom_boxplot() +
-  theme(axis.text.x = element_text(angle = 90))
+  scale_fill_brewer(palette = "Dark2") +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.1), 
+                     labels = scales::label_percent(accuracy = 1)) +
+  labs(x = "Region",
+       y = "Enrollment",
+       title = "Distribution of Enrollment by Region") + 
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "none")
 ```
 
 16. Find the weighted average of graduation rates by region using enrollment as weights. Compare the results you get for the weighted average to what you see from the boxplots. Can you explain any discrepancy? **The outliers causing skew by region in terms of graduation rates are also the most enrolled, which pulls the means of each regional group away from its median.**
@@ -173,11 +206,17 @@ algdiffdist <- districts %>%
 ggplot(algdiffdist, aes(x = algdiff)) + 
   geom_histogram(bins = 20, 
                  color = "black", 
-                 fill = "blue") 
+                 fill = "blue") +
+  labs(x = "Difference in Algebra Proficiencies", 
+       y = "Count",
+       title = "Histogram of Difference in Algebra Proficiencies by District") +
+  ylim(0,20) +
+  xlim(-20,60)
 ```
 ```{r}
 algdiffdist %>% 
-  arrange(desc(algdiff))
+  arrange(desc(algdiff)) %>% 
+  top_n(1, algdiff)
 ```
 
 ```{r}
@@ -195,14 +234,39 @@ na_mask <- districts %>%
   apply(MARGIN = 1, function(x) sum(is.na(x)))
 
 print(districts[na_mask >= 10,])
-
-print(districts[na_mask == 15,])
 ```
 
+```{r}
+print(districts[na_mask == 15,])
+```
 
 19. Find the correlation between graduation rate and all other variables. Create a horizontal bar chart showing these correlations. Make sure that your plot is ordered by correlation values. What do you notice from these correlations? **Economic disadvantage and having a larger number of members of otherwise historically disadvantaged groups is very negatively correlated with graduation rates, unfortunately. Also, school attendance is a large part of graduation rates.**
 
 ```{r}
+variable_label_vector <- c("English 3 Proficiency", 
+                           "Science Proficiency", 
+                           "Biology Proficiency",
+                           "Algebra 2 Proficiency",
+                           "Algebra 1 Proficiency",
+                           "English 1 Proficiency",
+                           "English 2 Proficiency",
+                           "Math Proficiency",
+                           "English Language Proficiency",
+                           "Chemistry Proficiency",
+                           "Composite ACT Scores",
+                           "Percentage of Students With Disabilities",
+                           "Percentage of Native American Students",
+                           "Percentage of Economically Disadvantaged Students",
+                           "Expenditures Per Student",
+                           "Percentage of Chronically Absent Students",
+                           "Percentage of Latina Students",
+                           "Percentage of English Language Learners",
+                           "Percentage of Expelled Students",
+                           "Total Enrollment",
+                           "Percentage of African-American Students",
+                           "Percentage of Suspended Students",
+                           "Percentage of Dropouts")
+
 cor_mat <- districts %>%
   select(3:26) %>%
   cor(y = districts['grad'], use = "complete.obs") 
@@ -213,7 +277,13 @@ cor_mat <- cor_mat %>%
   arrange(desc(correlation))
 
 ggplot(cor_mat[2:24,], aes(correlation, reorder(variable, correlation), fill = variable)) +
-  geom_col()
+  geom_col() +
+  labs(x = "Correlation",
+       y = "Variable",
+       title = "Correlations with Graduation Rate") +
+  theme(legend.position = "none") +
+  xlim(-1,1) +
+  scale_y_discrete(labels = rev(variable_label_vector))
   
 
 ```
@@ -225,8 +295,12 @@ ggplot(cor_mat[2:24,], aes(correlation, reorder(variable, correlation), fill = v
 
 ```{r}
 
-ggplot(districts, aes(grad, suspended)) + geom_point() + geom_smooth(method = 'lm')
-
+ggplot(districts, aes(grad, suspended)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm') +
+  labs(x = "Graduation Rate",
+       y = "Percentage of Suspended Students",
+       title = "Scatterplot of Graduation Rate vs. Suspensions")
 ```
 
 
@@ -245,6 +319,12 @@ summary(lm_model)
 **Continued Exploration and Practice**
 
 23. Read in the school-level testing data for 2014, available [here](https://www.tn.gov/content/dam/tn/education/data/data_2014_school_base.xlsx). You might find the readxl library useful for this task. If you use this library, be sure to look at the `na` argument for the `read_excel` function.
+
+```{r}
+library(readxl)
+
+testing <- read_excel("data/data_2014_school_base.xlsx", na = c("", "*", "**"))
+```
 
 24. How many schools have at least 20 percent of students below bsc for Algebra I? Which districts do these schools belong to?
 
