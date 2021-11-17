@@ -19,6 +19,7 @@ Create an RMarkdown file to answer the following questions.
 
 ```{r}
 library(tidyverse)
+library(viridis)
 ```
 
 
@@ -94,7 +95,11 @@ ggplot(districts, aes(x = grad, fill = region)) +
   xlim(0, 100) + 
   labs(x = "Graduation Rate", 
        y = "Count of School Districts", 
-       title = "Histogram of Graduation Rate Distributions (Stacked by Region)")
+       title = "Histogram of Graduation Rate Distributions (Stacked by Region)",
+       fill = "Region") + 
+  scale_fill_brewer() +
+  theme(panel.background = element_rect(fill = "#fbe3b2"),
+        panel.grid.minor = element_blank())
 ```
 
 
@@ -326,21 +331,215 @@ library(readxl)
 testing <- read_excel("data/data_2014_school_base.xlsx", na = c("", "*", "**"))
 ```
 
-24. How many schools have at least 20 percent of students below bsc for Algebra I? Which districts do these schools belong to?
+```{r}
+testing
+```
 
-25. How many schools have at least 20 percent of students below bsc for _both_ Algebra I and English I?
 
-26. Which grade has the highest pct_adv for Algebra I? Plot the average pct_adv per grade level as a bar chart. Make sure that the bars are ordered by grade level.
+24. How many schools have at least 20 percent of students below bsc for Algebra I? **71** Which districts do these schools belong to? **A variety. Only trend is that larger inner city districts are generally represented.**
+
+```{r}
+testing %>% 
+  filter(grade == "All Grades", 
+         subgroup == "All Students", 
+         subject == "Algebra I", 
+         pct_below_bsc >= 20) %>% 
+  count()
+```
+
+
+```{r}
+testing %>% 
+  filter(grade == "All Grades", 
+         subgroup == "All Students", 
+         subject == "Algebra I", 
+         pct_below_bsc >= 20) %>% 
+  distinct(system_name)
+```
+
+
+25. How many schools have at least 20 percent of students below bsc for _both_ Algebra I and English I? **4**
+
+```{r}
+testing %>% 
+  filter(grade == "All Grades", 
+         subgroup == "All Students", 
+         subject == "English I" | subject == "Algebra I", 
+         pct_below_bsc >= 20) %>% 
+  select("system_name", "school_name", "subject", "pct_below_bsc") %>% 
+  pivot_wider(names_from = "subject", values_from = "pct_below_bsc") %>% 
+  rename(English_I = "English I", Algebra_I = "Algebra I") %>% 
+  filter(!is.na(English_I) & !is.na(Algebra_I)) %>% 
+  count()
+```
+
+26. Which grade has the highest pct_adv for Algebra I? **8.** Plot the average pct_adv per grade level as a bar chart. Make sure that the bars are ordered by grade level.
+
+```{r}
+alg1_adv <- testing %>%
+  filter(grade != "All Grades",
+         subgroup == "All Students",
+         subject == "Algebra I",
+         !is.na(pct_adv)) %>% 
+  group_by(grade) %>%
+  summarize(avg_pct_adv = sum(pct_adv)/n()) %>% 
+  mutate(grade = as.numeric(grade)) %>% 
+  arrange(grade)
+```
+
+
+```{r}
+ggplot(alg1_adv, aes(x = grade, y = avg_pct_adv/100, fill = factor(grade))) + 
+  geom_col() +
+  scale_fill_viridis(discrete = TRUE) +
+  ylim(0, 40) +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.1), 
+                     labels = scales::label_percent(accuracy = 1)) +
+  labs(x = "Grade Level",
+       y = "Average Percentage",
+       title = "Percentages of Algebra 1 Advancement Level by Grade") +
+  theme(legend.position = 'none',
+        panel.background = element_rect(fill = "#FFFFFF"),
+        panel.grid.major = element_line(color = "#000000", 
+                                        linetype = "dashed"))
+```
 
 27. Find the correlation between pct_adv for Algebra I and pct_adv for Algebra II by school. Create a scatterplot showing Algebra II scores vs. Algebra I scores by school.
 
+```{r}
+
+corr_alg <- testing %>%
+  filter(grade == "All Grades", 
+         subgroup == "All Students", 
+         subject == "Algebra I" | subject == "Algebra II") %>% 
+  select("system_name", "school_name", "subject", "pct_adv") %>% 
+  filter(!is.na(pct_adv)) %>% 
+  pivot_wider(names_from = subject, values_from = pct_adv) %>% 
+  rename(Algebra_I = "Algebra I", Algebra_II = "Algebra II") %>% 
+  filter(!is.na(Algebra_I) & !is.na(Algebra_II))
+
+specific_corr_mat <- corr_alg %>% 
+  select(Algebra_I, Algebra_II) %>% 
+  cor()
+
+print(specific_corr_mat[1, 2])
+
+ggplot(corr_alg, aes(x = Algebra_I, y = Algebra_II, color = Algebra_II)) + 
+  geom_point(shape = 20, size = 4) +
+  labs(x = "% Algebra I Advancement Level",
+       y = "% Algebra II Advancement Level",
+       title = "Scatterplot of Algebra I vs. Algebra II Advancement Level") +
+  theme(legend.position = "none",
+        panel.background = element_rect(fill = "#FFFFFF"),
+        panel.grid.major = element_blank()) + 
+  ylim(0,80) +
+  xlim(0,80) + 
+  scale_color_viridis_c()
+```
+```{r}
+corr_alg %>% 
+  rowwise() %>% 
+  mutate(coralg = Algebra_II/Algebra_I)
+```
+
 28. Find all schools in Rutherford County that have "High School" in their name. For these schools, create a chart (your choice) showing the differences in pct_below_bsc, pct_bsc, pct_prof, and pct_adv for Algebra I when looking across all subgroups and grades.
 
-29. I claim that smaller schools do a better job preparing students for Algebra I standardized tests. Find the average number of valid tests (a proxy for the school size) for schools where the pct_prof_adv for Algebra I is greater than 95. Compare this to the average number of valid tests for all schools. In light of this result, how does my claim look?
+```{r}
+just_rutherford_high <- testing %>% 
+  filter(grepl("Rutherford", system_name),
+         grepl("High School", school_name),
+         subject == "Algebra I",
+         subgroup == "All Students",
+         grade == "All Grades") %>%
+  select(school_name, pct_below_bsc, pct_bsc, pct_prof, pct_adv) %>% 
+  pivot_longer(cols = c(pct_below_bsc, pct_bsc, pct_prof, pct_adv), 
+               names_to = "Level",
+               values_to = "Percentage")
 
-30. I also claim that smaller schools do a worse job preparing students for Algebra I standardized tests. Find the average number of valid tests (a proxy for the school size) for schools where the pct_prof_adv for Algebra I is less than 25. Compare this to the average number of valid tests for all schools. In light of this result, how does my claim look now?
 
-31. Create a scatterplot showing pct_prov_adv vs. valid_tests. Can you use this to explain the result for numbers 26 and 27?
+ggplot(just_rutherford_high, 
+       aes(x = school_name, 
+           y = Percentage,
+           fill = Level)) + 
+  geom_col(position = "dodge") + 
+  scale_fill_discrete(label = c("Advanced", 
+                                "Below Basic", 
+                                "Basic", 
+                                "Proficient")) + 
+  ylim(0, 50) +
+  labs(x = "School Name",
+       title = "Algebra I Testing Levels for Rutherford County High Schools") + 
+  theme_classic() +
+  theme(axis.text.x = element_text(family = "Times", 
+                                   hjust = 1, 
+                                   vjust = 1, 
+                                   angle = 55),
+        plot.title = element_text(hjust = 0.5))
+
+```
+
+
+29. I claim that smaller schools do a better job preparing students for Algebra I standardized tests. Find the average number of valid tests (a proxy for the school size) for schools where the pct_prof_adv for Algebra I is greater than 95. Compare this to the average number of valid tests for all schools. In light of this result, how does my claim look? **Pretty good, actually, as the mean number of valid tests for schools with a high proficient advanced level percentage for Algebra I is 48 vs. 130.** 
+
+```{r}
+vt_95 <- testing %>% 
+  filter(subject == "Algebra I",
+         subgroup == "All Students",
+         grade == "All Grades",
+         pct_prof_adv > 95) %>%
+  select(system_name, school_name, valid_tests, pct_prof_adv) %>% 
+  summarize(valid_tests_95_and_above = mean(valid_tests, na.rm = TRUE))
+
+vt <- testing %>% 
+  filter(subject == "Algebra I",
+         subgroup == "All Students",
+         grade == "All Grades") %>%
+  select(system_name, school_name, valid_tests) %>% 
+  summarize(valid_tests_generally = mean(valid_tests, na.rm = TRUE))
+
+print(vt_95)
+print(vt)
+```
+
+30. I also claim that smaller schools do a worse job preparing students for Algebra I standardized tests. Find the average number of valid tests (a proxy for the school size) for schools where the pct_prof_adv for Algebra I is less than 25. Compare this to the average number of valid tests for all schools. In light of this result, how does my claim look now? **Unclear. The average number of valid tests for Algebra I where the proficient advanced is less than 25% is 62.**
+
+```{r}
+vt_25 <- testing %>% 
+  filter(subject == "Algebra I",
+         subgroup == "All Students",
+         grade == "All Grades",
+         pct_prof_adv < 25) %>%
+  select(system_name, school_name, valid_tests, pct_prof_adv) %>% 
+  summarize(valid_tests_25_and_below = mean(valid_tests, na.rm = TRUE))
+
+print(vt_25)
+```
+
+
+31. Create a scatterplot showing pct_prov_adv vs. valid_tests. Can you use this to explain the result for numbers 26 and 27? **There's probably a very weak, if positive, correlation between the two.**
+
+```{r}
+vts_ppa_alg <- testing %>% 
+  filter(subject == "Algebra I",
+         subgroup == "All Students",
+         grade == "All Grades") %>%
+  select(system_name, school_name, valid_tests, pct_prof_adv)
+
+ggplot(vts_ppa_alg, aes(x = valid_tests, y = pct_prof_adv/100)) + 
+  geom_point(shape = 20, size = 2, color = "brown") +
+  labs(x = "Percentage of Proficient Advanced Level in Algebra I",
+       y = "Number of Valid Tests",
+       title = "Algebra I Proficient Advanced Level vs. Valid Tests by TN School") +
+  theme(axis.ticks = element_blank(),
+        panel.background = element_rect(fill = '#f4efc4'),
+        panel.grid.minor = element_blank()) +
+  geom_smooth() +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.1), 
+                     labels = scales::label_percent(accuracy = 1)) +
+  xlim(0, 600) +
+  ylim(0, 1)
+```
+
 
 If you finish all of the above questions, continue to explore the two datasets and see what else interesting you can find.
 
