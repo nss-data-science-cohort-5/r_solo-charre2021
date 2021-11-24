@@ -26,7 +26,7 @@ library(viridis)
 1. Read in `districts.csv` into a tibble named `districts`. How many rows and columns does it contain? **Response to Text Question: Districts contains 146 rows and 27 columns.**
 
 ```{r}
-districts = read_csv('data/districts.csv')
+districts <- read_csv('data/districts.csv')
 str(districts)
 ```
 
@@ -540,7 +540,28 @@ ggplot(vts_ppa_alg, aes(x = valid_tests, y = pct_prof_adv/100)) +
   ylim(0, 1)
 ```
 
-
 If you finish all of the above questions, continue to explore the two datasets and see what else interesting you can find.
 
+```{r}
+for (testing_sn in testing["system_name"]){
+  for (districts_sn in districts["system_name"]){
+    if (startsWith(substr(testing_sn, 1, 4),substr(districts_sn, 1, 4))) {
+      testing$system_name[testing$system_name == testing_sn] <- districts_sn
+    }
+  }
+}
+
+td_merged <- testing %>% 
+  filter(grade == "All Grades",
+         subgroup == "All Students") %>% 
+  left_join(districts, by = "system_name") %>% 
+  select(-c(year, 
+            system.x, 
+            system.y, 
+            school, 
+            grade, 
+            subgroup))
+
+write_csv(td_merged, 'data/td_merged.csv')
+```
 Also, check out the plotly library for R. The `ggplotly` function makes it very easy to convert ggplot plots into interactive plotly plots.

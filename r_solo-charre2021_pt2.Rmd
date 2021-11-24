@@ -1,0 +1,115 @@
+---
+title: "R_Solo_charre-2021-pt2"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(plotly)
+library(scales)
+```
+
+```{r}
+td_merged <- read_csv('data/td_merged.csv')
+```
+```{r}
+# Adjust comma separator in hovertext.
+
+model_df <- td_merged %>% 
+  mutate(poc = hispanic + black + native) %>% 
+  select(system_name, 
+         poc, 
+         expenditures, 
+         ACT = act_composite, 
+         region, 
+         enrollment, 
+         ed) %>% 
+  unique() %>%
+  filter(!is.na(poc), !is.na(expenditures), !is.na(enrollment)) %>% 
+  mutate(exp_enr = round(expenditures/enrollment, 2))
+
+
+initial_scatter <- plot_ly(model_df,
+        x = ~poc/100,
+        y = ~expenditures,
+        hoverinfo = "text",
+        text = ~paste("District:", system_name,
+                      "<br>",
+                      "POC:", label_percent()(poc/100),
+                      "<br>",
+                      str_glue("${expenditures}"))) %>% 
+  add_markers(marker = list(symbol = "dot",
+                            size = 10)) %>% 
+  layout(xaxis = list(title = "% People of Color",
+                      fixedrange = TRUE,
+                      tickformat = "0%"),
+         yaxis = list(title = "Expenditures Per Student",
+                      fixedrange = TRUE,
+                      separatethousands = TRUE,
+                      tickprefix ='$',
+                      exponentformat = "none"),
+         paper_bgcolor = "#FFFFFF",
+         plot_bgcolor = "#FFFFFF") %>% 
+  config(modeBarButtonsToRemove = c("select2d", "zoomIn2d", "zoomOut2d"))
+
+initial_scatter
+```
+
+
+```{r}
+regression_model <- lm(expenditures ~ poc,
+                       data = model_df)
+
+summary(regression_model)
+```
+```{r}
+model_df <- model_df %>% 
+  cbind(predict(regression_model,
+                       newdata = model_df,
+                       interval = c("prediction"),
+                       level = 0.95))
+
+```
+
+
+
+
+```{r}
+plot_ly(model_df,
+        x = ~poc/100,
+        y = ~expenditures,
+        hoverinfo = "text",
+        text = ~paste("District:", system_name,
+                      "<br>",
+                      "POC:", label_percent()(poc/100),
+                      "<br>",
+                      str_glue("${expenditures}"))) %>% 
+  add_markers(marker = list(symbol = "dot",
+                            size = 10)) %>% 
+  layout(xaxis = list(title = "% People of Color",
+                      fixedrange = TRUE,
+                      tickformat = "0%"),
+         yaxis = list(title = "Expenditures Per Student",
+                      fixedrange = TRUE,
+                      separatethousands = TRUE,
+                      tickprefix ='$',
+                      exponentformat = "none"),
+         paper_bgcolor = "#FFFFFF",
+         plot_bgcolor = "#FFFFFF",
+         showlegend = FALSE) %>% 
+  config(modeBarButtonsToRemove = c("select2d", "zoomIn2d", "zoomOut2d")) %>%   
+  add_trace(model_df, 
+            x = ~poc/100, 
+            y = ~fit,
+            mode = "lines",
+            line = list(color ='#000000'),
+            hoverinfo ='skip') %>% 
+  add_ribbons(model_df,
+              x = ~poc/100,
+              ymin = ~lwr,
+              ymax = ~upr,
+              hoverinfo = 'skip',
+              color = I("#D3D3D3"),
+              alpha = 0.4)
+```
+
