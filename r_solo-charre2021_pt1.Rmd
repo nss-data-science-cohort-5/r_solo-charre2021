@@ -239,6 +239,14 @@ na_mask <- districts %>%
   apply(MARGIN = 1, function(x) sum(is.na(x)))
 
 print(districts[na_mask >= 10,])
+
+# Alternative.
+districts %>% 
+  rowwise() %>% 
+  mutate(sum_nas = sum(across(.cols = everything(), 
+                              .fns = function(x) sum(is.na(x)))),
+         .before = system_name) %>% 
+  arrange(desc(sum_nas))
 ```
 
 ```{r}
